@@ -39,6 +39,25 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+// Movie Listing API - FR-001
+app.get("/api/movies", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT movie_id, title, description, duration, poster_image
+       FROM movies
+       ORDER BY movie_id`
+    );
+
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error retrieving movies:", error);
+
+    res.status(500).json({
+      error: "Failed to retrieve movies",
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Backend running at http://localhost:${PORT}`);
