@@ -49,7 +49,77 @@ CREATE TABLE screening_rooms (
         UNIQUE (cinema_id, room_name)
 );
 
+-- 5. SEATS TABLE
+
+CREATE TABLE seats (
+    seat_id SERIAL PRIMARY KEY,
+
+    room_id INT NOT NULL,
+    row_label VARCHAR(10) NOT NULL,
+    seat_number INT NOT NULL,
+
+    is_accessible BOOLEAN NOT NULL DEFAULT FALSE,
+
+    CONSTRAINT fk_seat_room
+        FOREIGN KEY (room_id)
+        REFERENCES screening_rooms(room_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT unique_seat_position
+        UNIQUE (room_id, row_label, seat_number),
+
+    CONSTRAINT check_seat_number
+        CHECK (seat_number > 0),
+
+    CONSTRAINT prevent_row_13
+        CHECK (row_label <> '13')
+);
+
+
+-- 6. SHOWTIMES TABLE
+
+CREATE TABLE showtimes (
+    showtime_id SERIAL PRIMARY KEY,
+
+    movie_id INT NOT NULL,
+    room_id INT NOT NULL,
+
+    screening_time TIMESTAMP NOT NULL,
+
+    status VARCHAR(20) NOT NULL DEFAULT 'scheduled'
+        CHECK (
+            status IN (
+                'scheduled',
+                'cancelled',
+                'completed'
+            )
+        ),
+
+    CONSTRAINT fk_showtime_movie
+        FOREIGN KEY (movie_id)
+        REFERENCES movies(movie_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_showtime_room
+        FOREIGN KEY (room_id)
+        REFERENCES screening_rooms(room_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT check_showtime_room
+        UNIQUE (showtime_id, room_id)
+);
+
+
 -- INDEXES
 CREATE INDEX idx_screening_rooms_cinema
 ON screening_rooms(cinema_id);
+
+CREATE INDEX idx_showtimes_movie
+ON showtimes(movie_id);
+
+CREATE INDEX idx_showtimes_room
+ON showtimes(room_id);
+
+CREATE INDEX idx_showtimes_screening_time
+ON showtimes(screening_time);
 
