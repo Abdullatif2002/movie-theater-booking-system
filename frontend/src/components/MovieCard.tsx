@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import type { Movie } from "../App";
 
 interface MovieCardProps {
@@ -13,7 +14,6 @@ function MovieCard({ movie }: MovieCardProps) {
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-[#14141b] transition duration-300 hover:-translate-y-1 hover:border-red-500/40 hover:shadow-2xl hover:shadow-red-950/30">
-
       {/* Poster */}
       <div className="relative h-[280px] overflow-hidden bg-black sm:h-[300px]">
         {hasPoster ? (
@@ -49,12 +49,10 @@ function MovieCard({ movie }: MovieCardProps) {
 
         <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
 
-        {/* Badge */}
         <span className="absolute left-4 top-4 z-30 rounded-md bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white">
           Now Showing
         </span>
 
-        {/* Duration */}
         <span className="absolute bottom-4 right-4 z-30 rounded-lg border border-white/10 bg-black/80 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md">
           {movie.duration} min
         </span>
@@ -69,6 +67,14 @@ function MovieCard({ movie }: MovieCardProps) {
         <p className="mt-2 line-clamp-2 min-h-[48px] text-sm leading-6 text-zinc-400">
           {movie.description}
         </p>
+
+        <Link
+          to={`/movies/${movie.movie_id}`}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-500"
+        >
+          View Details
+          <span aria-hidden="true">→</span>
+        </Link>
       </div>
     </article>
   );

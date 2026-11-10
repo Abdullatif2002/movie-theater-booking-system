@@ -1,10 +1,13 @@
 
 import { useEffect, useMemo, useState } from "react";
+import { Route, Routes, Link } from "react-router-dom";
 import "./App.css";
 
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import MovieCard from "./components/MovieCard";
+import MovieDetails from "./pages/MovieDetails";
+import SeatSelection from "./pages/SeatSelection";
 
 export interface Movie {
   movie_id: number;
@@ -14,7 +17,7 @@ export interface Movie {
   poster_image: string | null;
 }
 
-function App() {
+function HomePage() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -77,11 +80,8 @@ function App() {
         id="movies"
         className="w-full px-5 py-12 sm:px-6 lg:px-8 xl:px-10"
       >
-        {/* Movies heading and search */}
         <div className="mb-8 rounded-2xl border border-white/[0.07] bg-[#111116] p-5 sm:p-7">
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
-
-            {/* Heading */}
             <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-red-500">
                 Find your next experience
@@ -96,7 +96,6 @@ function App() {
               </p>
             </div>
 
-            {/* Search */}
             <div className="w-full lg:max-w-[380px]">
               <label
                 htmlFor="movie-search"
@@ -139,7 +138,6 @@ function App() {
             </div>
           </div>
 
-          {/* Movie count and service status */}
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-5">
             <p className="text-sm text-zinc-400">
               {loading
@@ -163,7 +161,6 @@ function App() {
           </div>
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -175,7 +172,6 @@ function App() {
           </div>
         )}
 
-        {/* Error */}
         {!loading && error && (
           <div className="rounded-2xl border border-red-500/20 bg-red-500/5 px-6 py-12 text-center">
             <h3 className="text-lg font-bold">Unable to load movies</h3>
@@ -183,7 +179,6 @@ function App() {
           </div>
         )}
 
-        {/* Movie cards */}
         {!loading && !error && filteredMovies.length > 0 && (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filteredMovies.map((movie) => (
@@ -192,7 +187,6 @@ function App() {
           </div>
         )}
 
-        {/* Empty search */}
         {!loading && !error && filteredMovies.length === 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-16 text-center">
             <h3 className="text-xl font-bold">No movies found</h3>
@@ -212,7 +206,6 @@ function App() {
         )}
       </main>
 
-      {/* Footer */}
       <footer
         id="contact"
         className="border-t border-white/10 bg-black/40"
@@ -229,6 +222,42 @@ function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function NotFound() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#09090d] px-5 text-center text-white">
+      <h1 className="text-6xl font-black text-red-500">404</h1>
+      <p className="mt-4 text-xl font-bold">Page not found</p>
+
+      <Link
+        to="/"
+        className="mt-6 rounded-lg bg-red-600 px-6 py-3 font-semibold hover:bg-red-500"
+      >
+        Back to Home
+      </Link>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+
+      <Route
+        path="/movies/:movieId"
+        element={<MovieDetails />}
+      />
+
+      <Route
+        path="/showtimes/:showtimeId/seats"
+        element={<SeatSelection />}
+      />
+
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
 
