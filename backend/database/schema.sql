@@ -123,3 +123,61 @@ ON showtimes(room_id);
 CREATE INDEX idx_showtimes_screening_time
 ON showtimes(screening_time);
 
+
+-- 7. BOOKINGS TABLE
+CREATE TABLE bookings (
+    booking_id SERIAL PRIMARY KEY,
+
+    user_id INT NOT NULL,
+    showtime_id INT NOT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_booking_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_booking_showtime
+        FOREIGN KEY (showtime_id)
+        REFERENCES showtimes(showtime_id)
+        ON DELETE RESTRICT,
+
+    -- Allows booking_seats to verify the booking's showtime
+    CONSTRAINT unique_booking_showtime
+        UNIQUE (booking_id, showtime_id)
+);
+
+
+-- 8. BOOKING SEATS TABLE
+CREATE TABLE booking_seats (
+    booking_seat_id SERIAL PRIMARY KEY,
+
+    booking_id INT NOT NULL,
+    showtime_id INT NOT NULL,
+    seat_id INT NOT NULL,
+
+    CONSTRAINT fk_booking_seats_booking
+        FOREIGN KEY (booking_id, showtime_id)
+        REFERENCES bookings(booking_id, showtime_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_booking_seats_seat
+        FOREIGN KEY (seat_id)
+        REFERENCES seats(seat_id)
+        ON DELETE RESTRICT,
+
+    -- A seat can only be booked once for a particular showtime
+    CONSTRAINT unique_reserved_seat_per_showtime
+        UNIQUE (showtime_id, seat_id)
+);
+
+
+-- INDEXES FOR BOOKING TABLES
+CREATE INDEX idx_bookings_user
+ON bookings(user_id);
+
+CREATE INDEX idx_booking_seats_booking
+ON booking_seats(booking_id);
+
+
