@@ -7,6 +7,7 @@ interface Seat {
   row_label: string;
   seat_number: number;
   is_accessible: boolean;
+  is_booked: boolean;
 }
 
 interface SeatResponse {
@@ -84,6 +85,12 @@ function SeatSelection() {
   }, [data]);
 
   const toggleSeat = (seatId: number) => {
+    const seat = data?.seats.find(
+      (item) => item.seat_id === seatId
+    );
+
+    if (!seat || seat.is_booked) return;
+
     setSelectedSeats((current) =>
       current.includes(seatId)
         ? current.filter((id) => id !== seatId)
@@ -102,6 +109,10 @@ function SeatSelection() {
           a.seat_number - b.seat_number
       );
   }, [data, selectedSeats]);
+
+  const bookedCount = data?.seats.filter(
+    (seat) => seat.is_booked
+  ).length ?? 0;
 
   if (loading) {
     return (
@@ -149,8 +160,6 @@ function SeatSelection() {
 
   return (
     <div className="min-h-screen bg-[#09090d] text-white">
-
-      {/* Header */}
       <header className="border-b border-white/10 bg-black/40">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5">
           <Link to="/" className="text-2xl font-black">
@@ -167,8 +176,6 @@ function SeatSelection() {
       </header>
 
       <main className="mx-auto max-w-7xl px-5 py-10">
-
-        {/* Heading */}
         <div className="mb-10">
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-red-500">
             CINEMAX · Booking
@@ -187,10 +194,7 @@ function SeatSelection() {
           </div>
         </div>
 
-        {/* Seat Selection */}
         <section className="rounded-2xl border border-white/10 bg-[#14141b] p-4 sm:p-8">
-
-          {/* Screen */}
           <div className="mx-auto mb-12 max-w-3xl">
             <div className="h-2 rounded-full bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_8px_25px_rgba(239,68,68,0.3)]" />
             <p className="mt-4 text-center text-xs font-bold uppercase tracking-[0.35em] text-zinc-500">
@@ -198,7 +202,6 @@ function SeatSelection() {
             </p>
           </div>
 
-          {/* Legend */}
           <div className="mb-10 flex flex-wrap justify-center gap-x-6 gap-y-3 text-xs text-zinc-400">
             <div className="flex items-center gap-2">
               <span className="h-4 w-4 rounded bg-slate-600" />
@@ -214,9 +217,13 @@ function SeatSelection() {
               <span className="h-4 w-4 rounded border border-emerald-400 bg-emerald-600" />
               Accessible
             </div>
+
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded bg-zinc-800" />
+              Booked
+            </div>
           </div>
 
-          {/* Seat Grid */}
           {rows.length === 0 ? (
             <p className="py-10 text-center text-zinc-400">
               No seats have been configured for this screening room.
@@ -244,16 +251,19 @@ function SeatSelection() {
                         <button
                           key={seat.seat_id}
                           type="button"
+                          disabled={seat.is_booked}
                           onClick={() => toggleSeat(seat.seat_id)}
                           aria-pressed={isSelected}
-                          aria-label={`Row ${seat.row_label}, seat ${seat.seat_number}${seat.is_accessible ? ", accessible" : ""}`}
-                          title={`Row ${seat.row_label}, Seat ${seat.seat_number}${seat.is_accessible ? " · Accessible" : ""}`}
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-t-lg rounded-b-sm text-[10px] font-bold transition hover:scale-110 sm:h-9 sm:w-9 ${
-                            isSelected
-                              ? "bg-red-600 text-white ring-2 ring-red-300"
-                              : seat.is_accessible
-                                ? "border border-emerald-400 bg-emerald-600 text-white hover:bg-emerald-500"
-                                : "bg-slate-600 text-white hover:bg-slate-500"
+                          aria-label={`Row ${seat.row_label}, seat ${seat.seat_number}${seat.is_booked ? ", booked" : ""}${seat.is_accessible ? ", accessible" : ""}`}
+                          title={`Row ${seat.row_label}, Seat ${seat.seat_number}${seat.is_booked ? " · Booked" : seat.is_accessible ? " · Accessible" : " · Available"}`}
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-t-lg rounded-b-sm text-[10px] font-bold transition sm:h-9 sm:w-9 ${
+                            seat.is_booked
+                              ? "cursor-not-allowed bg-zinc-800 text-zinc-500 opacity-60"
+                              : isSelected
+                                ? "bg-red-600 text-white ring-2 ring-red-300"
+                                : seat.is_accessible
+                                  ? "border border-emerald-400 bg-emerald-600 text-white hover:bg-emerald-500"
+                                  : "bg-slate-600 text-white hover:scale-110 hover:bg-slate-500"
                           }`}
                         >
                           {seat.seat_number}
@@ -270,14 +280,10 @@ function SeatSelection() {
           )}
         </section>
 
-        {/* Selection Summary */}
         <section className="mt-6 rounded-2xl border border-white/10 bg-[#14141b] p-5 sm:p-7">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-
             <div>
-              <h2 className="text-xl font-bold">
-                Your Selection
-              </h2>
+              <h2 className="text-xl font-bold">Your Selection</h2>
 
               {selectedSeatDetails.length > 0 ? (
                 <p className="mt-2 text-sm text-zinc-400">
@@ -293,24 +299,23 @@ function SeatSelection() {
             </div>
 
             <div className="text-left sm:text-right">
-              <p className="text-sm text-zinc-400">
-                Selected seats
-              </p>
-
+              <p className="text-sm text-zinc-400">Selected seats</p>
               <p className="mt-1 text-3xl font-black text-red-500">
                 {selectedSeats.length}
               </p>
             </div>
-
           </div>
 
-          <p className="mt-5 border-t border-white/10 pt-4 text-xs leading-6 text-zinc-500">
-            Seat selection is currently a frontend demonstration.
-            Your selections are not reserved or saved to the database.
-            Occupied seat information will be added with booking integration.
+          <div className="mt-5 flex flex-wrap gap-5 border-t border-white/10 pt-4 text-xs text-zinc-400">
+            <span>Available: {data.seats.length - bookedCount}</span>
+            <span>Booked: {bookedCount}</span>
+          </div>
+
+          <p className="mt-4 text-xs leading-6 text-zinc-500">
+            Booked seats cannot be selected. Selecting an available seat does
+            not reserve it; booking confirmation is handled separately.
           </p>
         </section>
-
       </main>
     </div>
   );
