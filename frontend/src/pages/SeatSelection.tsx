@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 interface Seat {
   seat_id: number;
@@ -32,6 +32,7 @@ interface SeatResponse {
 
 function SeatSelection() {
   const { showtimeId } = useParams<{ showtimeId: string }>();
+  const navigate = useNavigate();
 
   const [data, setData] = useState<SeatResponse | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
@@ -110,9 +111,19 @@ function SeatSelection() {
       );
   }, [data, selectedSeats]);
 
-  const bookedCount = data?.seats.filter(
-    (seat) => seat.is_booked
-  ).length ?? 0;
+  const bookedCount =
+    data?.seats.filter((seat) => seat.is_booked).length ?? 0;
+
+  const continueToBooking = () => {
+    if (!showtimeId || selectedSeats.length === 0) return;
+
+    sessionStorage.setItem(
+      `selectedSeats-${showtimeId}`,
+      JSON.stringify(selectedSeats)
+    );
+
+    navigate(`/booking-summary/${showtimeId}`);
+  };
 
   if (loading) {
     return (
@@ -312,9 +323,18 @@ function SeatSelection() {
           </div>
 
           <p className="mt-4 text-xs leading-6 text-zinc-500">
-            Booked seats cannot be selected. Selecting an available seat does
-            not reserve it; booking confirmation is handled separately.
+            Booked seats cannot be selected. Your selection will be checked
+            again before booking confirmation.
           </p>
+
+          <button
+            type="button"
+            onClick={continueToBooking}
+            disabled={selectedSeats.length === 0}
+            className="mt-6 w-full rounded-xl bg-red-600 px-6 py-4 font-bold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Continue to Booking →
+          </button>
         </section>
       </main>
     </div>

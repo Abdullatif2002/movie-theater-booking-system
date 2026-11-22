@@ -8,6 +8,8 @@ import Hero from "./components/Hero";
 import MovieCard from "./components/MovieCard";
 import MovieDetails from "./pages/MovieDetails";
 import SeatSelection from "./pages/SeatSelection";
+import BookingSummary from "./pages/BookingSummary";
+import BookingConfirmation from "./pages/BookingConfirmation";
 
 export interface Movie {
   movie_id: number;
@@ -255,6 +257,15 @@ function App() {
         path="/showtimes/:showtimeId/seats"
         element={<SeatSelection />}
       />
+      <Route
+  path="/booking-summary/:showtimeId"
+  element={<BookingSummary />}
+/>
+
+<Route
+  path="/booking-confirmation/:bookingId"
+  element={<BookingConfirmation />}
+/>
 
       <Route path="*" element={<NotFound />} />
     </Routes>
