@@ -7,6 +7,11 @@ interface Booking {
   user_id: number;
   showtime_id: number;
   created_at: string;
+  payment_status: string;
+  total_amount_cents: number | string | null;
+  currency: string;
+  paid_at: string | null;
+  expires_at: string | null;
   full_name: string;
   email: string;
   movie_title: string;
@@ -21,6 +26,8 @@ interface BookingSeat {
   row_label: string;
   seat_number: number;
   is_accessible: boolean;
+  ticket_type_code: string | null;
+  unit_price_cents: number | string | null;
 }
 
 interface BookingResponse {
@@ -34,54 +41,186 @@ function BookingConfirmation() {
   const [data, setData] = useState<BookingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    const loadBooking = async () => {
-      if (!bookingId || !/^\d+$/.test(bookingId)) {
-        setError("Invalid booking ID.");
-        setLoading(false);
-        return;
-      }
+    if (!bookingId || !/^\d+$/.test(bookingId)) {
+      setError("Invalid booking ID.");
+      setLoading(false);
+      return;
+    }
 
+    let active = true;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
+    const loadBooking = async (isRefresh = false) => {
       try {
-        const response = await fetch(
-          `http://localhost:3000/api/bookings/${bookingId}`
-        );
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "Unable to load booking.");
+        if (isRefresh && active) {
+          setRefreshing(true);
         }
 
-        setData(result);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Something went wrong."
+        const response = await fetch(
+          `http://localhost:3000/api/bookings/${bookingId}`,
+          { cache: "no-store" }
         );
+
+        const result: BookingResponse | { error?: string } =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            "error" in result
+              ? result.error || "Unable to load booking."
+              : "Unable to load booking."
+          );
+        }
+
+        if (!active || !("booking" in result)) return;
+
+        setData(result);
+        setError("");
+
+        const status = result.booking.payment_status;
+
+        // Stop polling after a final payment state.
+        if (
+          ["paid", "expired", "failed", "cancelled"].includes(status) &&
+          intervalId
+        ) {
+          clearInterval(intervalId);
+          intervalId = undefined;
+        }
+      } catch (err) {
+        if (active) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Something went wrong."
+          );
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     };
 
     loadBooking();
+
+    intervalId = setInterval(() => {
+      if (active) {
+        loadBooking(true);
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [bookingId]);
+
+  const formatPrice = (amount: number | string | null) => {
+    if (amount === null || amount === undefined) return "—";
+
+    return new Intl.NumberFormat("fi-FI", {
+      style: "currency",
+      currency: data?.booking.currency || "EUR",
+    }).format(Number(amount) / 100);
+  };
+
+  const getTicketName = (type: string | null) => {
+    switch (type) {
+      case "child":
+        return "Child (under 16)";
+      case "accessible":
+        return "Accessible";
+      case "adult":
+        return "Adult";
+      default:
+        return "Previous booking";
+    }
+  };
+
+  const getStatusDetails = (status: string) => {
+    switch (status) {
+      case "paid":
+        return {
+          title: "Your booking is confirmed!",
+          subtitle: "Your payment has been successfully received.",
+          label: "Payment successful",
+          color: "emerald",
+          icon: "✓",
+        };
+
+      case "pending_payment":
+        return {
+          title: "Payment is processing",
+          subtitle:
+            "We are waiting for Stripe to confirm your payment. This page updates automatically.",
+          label: "Payment pending",
+          color: "yellow",
+          icon: "…",
+        };
+
+      case "expired":
+        return {
+          title: "Payment session expired",
+          subtitle:
+            "The payment was not completed within the allowed time. Your seats have been released.",
+          label: "Booking expired",
+          color: "red",
+          icon: "!",
+        };
+
+      case "failed":
+        return {
+          title: "Payment could not be completed",
+          subtitle:
+            "Your booking was not confirmed. Please start a new booking.",
+          label: "Payment failed",
+          color: "red",
+          icon: "!",
+        };
+
+      case "cancelled":
+        return {
+          title: "Booking cancelled",
+          subtitle: "This booking has been cancelled.",
+          label: "Cancelled",
+          color: "red",
+          icon: "!",
+        };
+
+      default:
+        return {
+          title: "Booking status unavailable",
+          subtitle: "Please contact the cinema for assistance.",
+          label: status,
+          color: "yellow",
+          icon: "?",
+        };
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#09090d] text-white">
-        Loading booking confirmation...
+        Loading booking details...
       </div>
     );
   }
 
-  if (error || !data) {
+  if (error && !data) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#09090d] px-5 text-center text-white">
         <h1 className="text-3xl font-black">Booking unavailable</h1>
-        <p className="mt-3 text-zinc-400">
-          {error || "Booking details not found."}
-        </p>
+
+        <p className="mt-3 text-zinc-400">{error}</p>
+
         <Link
           to="/"
           className="mt-6 rounded-lg bg-red-600 px-6 py-3 font-semibold hover:bg-red-500"
@@ -92,7 +231,25 @@ function BookingConfirmation() {
     );
   }
 
+  if (!data) return null;
+
   const { booking, seats } = data;
+  const status = getStatusDetails(booking.payment_status);
+  const isPaid = booking.payment_status === "paid";
+  const isPending = booking.payment_status === "pending_payment";
+  const isExpiredOrFailed = ["expired", "failed", "cancelled"].includes(
+    booking.payment_status
+  );
+
+  const colorClasses: Record<string, string> = {
+    emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+    yellow: "border-yellow-500/20 bg-yellow-500/10 text-yellow-400",
+    red: "border-red-500/20 bg-red-500/10 text-red-400",
+  };
+
+  const seatColor = isPaid
+    ? "border-emerald-500/30 bg-emerald-500/10"
+    : "border-white/10 bg-white/[0.04]";
 
   return (
     <div className="min-h-screen bg-[#09090d] text-white">
@@ -105,26 +262,41 @@ function BookingConfirmation() {
       </header>
 
       <main className="mx-auto max-w-3xl px-5 py-12">
-        <section className="rounded-2xl border border-emerald-500/20 bg-[#14141b] p-7 text-center sm:p-10">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-3xl text-emerald-400">
-            ✓
+        <section className="rounded-2xl border border-white/10 bg-[#14141b] p-7 text-center sm:p-10">
+          <div
+            className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full border text-3xl font-black ${colorClasses[status.color] || colorClasses.yellow}`}
+          >
+            {status.icon}
           </div>
 
-          <p className="mt-6 text-xs font-bold uppercase tracking-[0.3em] text-emerald-400">
-            Booking successful
+          <p
+            className={`mt-6 text-xs font-bold uppercase tracking-[0.3em] ${colorClasses[status.color]?.split(" ").pop()}`}
+          >
+            {status.label}
           </p>
 
           <h1 className="mt-3 text-3xl font-black sm:text-4xl">
-            Your booking is <span className="text-emerald-400">confirmed!</span>
+            {status.title}
           </h1>
 
           <p className="mt-3 text-sm text-zinc-400">
-            Your booking details are shown below.
+            {status.subtitle}
           </p>
+
+          {isPending && (
+            <div className="mt-6">
+              <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-yellow-400/30 border-t-yellow-400" />
+              <p className="mt-3 text-xs text-zinc-500">
+                {refreshing
+                  ? "Checking payment status..."
+                  : "Waiting for payment confirmation..."}
+              </p>
+            </div>
+          )}
 
           <div className="mt-7 rounded-xl bg-white/[0.04] p-5">
             <p className="text-sm text-zinc-400">Booking ID</p>
-            <p className="mt-2 text-3xl font-black text-emerald-400">
+            <p className="mt-2 text-3xl font-black text-white">
               #{booking.booking_id}
             </p>
           </div>
@@ -146,7 +318,9 @@ function BookingConfirmation() {
 
             <div className="flex justify-between gap-4">
               <span className="text-zinc-400">Movie</span>
-              <span className="font-semibold">{booking.movie_title}</span>
+              <span className="text-right font-semibold">
+                {booking.movie_title}
+              </span>
             </div>
 
             <div className="flex justify-between gap-4">
@@ -173,41 +347,88 @@ function BookingConfirmation() {
 
             <div className="flex justify-between gap-4">
               <span className="text-zinc-400">Booking date</span>
-              <span>
+              <span className="text-right">
                 {new Date(booking.created_at).toLocaleString()}
               </span>
             </div>
+
+            {booking.paid_at && (
+              <div className="flex justify-between gap-4">
+                <span className="text-zinc-400">Paid at</span>
+                <span className="text-right">
+                  {new Date(booking.paid_at).toLocaleString()}
+                </span>
+              </div>
+            )}
+
+            {isPending && booking.expires_at && (
+              <div className="flex justify-between gap-4">
+                <span className="text-zinc-400">Payment deadline</span>
+                <span className="text-right">
+                  {new Date(booking.expires_at).toLocaleString()}
+                </span>
+              </div>
+            )}
           </div>
         </section>
 
         <section className="mt-6 rounded-2xl border border-white/10 bg-[#14141b] p-6">
-          <h2 className="text-xl font-bold">Your Seats</h2>
+          <h2 className="text-xl font-bold">Your Tickets</h2>
 
-          <div className="mt-5 flex flex-wrap gap-3">
-            {seats.map((seat) => (
-              <div
-                key={seat.seat_id}
-                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-5 py-3"
-              >
-                <p className="text-xs text-zinc-400">
-                  Row {seat.row_label}
-                </p>
-                <p className="text-xl font-black text-emerald-400">
-                  {seat.seat_number}
-                </p>
-                {seat.is_accessible && (
-                  <p className="text-xs text-emerald-300">
-                    Accessible
+          {seats.length === 0 ? (
+            <p className="mt-5 text-sm text-zinc-400">
+              No active seats are attached to this booking.
+            </p>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {seats.map((seat) => (
+                <div
+                  key={seat.seat_id}
+                  className={`flex flex-col justify-between gap-3 rounded-lg border p-4 sm:flex-row sm:items-center ${seatColor}`}
+                >
+                  <div>
+                    <p className="font-bold">
+                      Row {seat.row_label} · Seat {seat.seat_number}
+                    </p>
+
+                    <p className="mt-1 text-xs text-zinc-400">
+                      {getTicketName(seat.ticket_type_code)}
+                    </p>
+
+                    {seat.is_accessible && (
+                      <p className="mt-1 text-xs text-emerald-300">
+                        Accessible seat
+                      </p>
+                    )}
+                  </div>
+
+                  <p className="font-bold">
+                    {formatPrice(seat.unit_price_cents)}
                   </p>
-                )}
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-5 flex justify-between border-t border-white/10 pt-4">
+            <span className="font-bold">Total</span>
+            <span className="text-xl font-black text-red-500">
+              {formatPrice(booking.total_amount_cents)}
+            </span>
           </div>
         </section>
 
+        {isExpiredOrFailed && (
+          <div className="mt-5 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+            This booking is not confirmed. Please return to the movie
+            listing and make a new booking if you still want tickets.
+          </div>
+        )}
+
         <p className="mt-5 text-center text-xs leading-6 text-zinc-500">
-          Development booking confirmation. Payment and ticket pricing are
-          not included in this version.
+          Payment status is confirmed by the CINEMAX server through
+          Stripe webhook verification. This page does not treat a
+          browser redirect as proof of payment.
         </p>
 
         <Link

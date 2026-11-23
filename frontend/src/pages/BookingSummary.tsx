@@ -1,6 +1,5 @@
-
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 interface Seat {
   seat_id: number;
@@ -32,16 +31,33 @@ interface Movie {
   title: string;
 }
 
+interface TicketPrice {
+  ticket_type_code: "adult" | "child" | "accessible";
+  display_name: string;
+  price_cents: number;
+  currency: string;
+  discount_percent: number;
+}
+
+type TicketSelections = Record<number, TicketPrice["ticket_type_code"]>;
+
 function BookingSummary() {
   const { showtimeId } = useParams<{ showtimeId: string }>();
-  const navigate = useNavigate();
 
   const [data, setData] = useState<SeatResponse | null>(null);
   const [movieTitle, setMovieTitle] = useState("");
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
+  const [ticketPrices, setTicketPrices] = useState<TicketPrice[]>([]);
+  const [ticketSelections, setTicketSelections] =
+    useState<TicketSelections>({});
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const paymentCancelled =
+    new URLSearchParams(window.location.search).get("payment") ===
+    "cancelled";
 
   useEffect(() => {
     const loadBookingSummary = async () => {
@@ -83,22 +99,40 @@ function BookingSummary() {
       }
 
       try {
-        // Load seat and showtime information
-        const response = await fetch(
-          `http://localhost:3000/api/showtimes/${showtimeId}/seats`
-        );
+        const [
+          seatsResponse,
+          moviesResponse,
+          pricesResponse,
+        ] = await Promise.all([
+          fetch(
+            `http://localhost:3000/api/showtimes/${showtimeId}/seats`
+          ),
+          fetch("http://localhost:3000/api/movies"),
+          fetch(
+            `http://localhost:3000/api/showtimes/${showtimeId}/ticket-prices`
+          ),
+        ]);
 
-        if (!response.ok) {
+        if (!seatsResponse.ok) {
           throw new Error("Unable to load booking information.");
         }
 
-        const result: SeatResponse = await response.json();
+        if (!moviesResponse.ok) {
+          throw new Error("Unable to load movie information.");
+        }
+
+        if (!pricesResponse.ok) {
+          throw new Error("Unable to load ticket prices.");
+        }
+
+        const result: SeatResponse = await seatsResponse.json();
+        const movies: Movie[] = await moviesResponse.json();
+        const prices: TicketPrice[] = await pricesResponse.json();
 
         if (result.showtime.status !== "scheduled") {
           throw new Error("This showtime is not available.");
         }
 
-        // Prevent past or already started screenings
         const screeningTime = new Date(
           result.showtime.screening_time
         ).getTime();
@@ -108,20 +142,9 @@ function BookingSummary() {
           screeningTime <= Date.now()
         ) {
           throw new Error(
-            "This screening has already started or passed. Please select a future showtime."
+            "This screening has already started or passed."
           );
         }
-
-        // Load movie title
-        const moviesResponse = await fetch(
-          "http://localhost:3000/api/movies"
-        );
-
-        if (!moviesResponse.ok) {
-          throw new Error("Unable to load movie information.");
-        }
-
-        const movies: Movie[] = await moviesResponse.json();
 
         const movie = movies.find(
           (item) => item.movie_id === result.showtime.movie_id
@@ -131,7 +154,6 @@ function BookingSummary() {
           throw new Error("Movie information not found.");
         }
 
-        // Validate selected seats
         const chosenSeats = result.seats.filter((seat) =>
           seatIds.includes(seat.seat_id)
         );
@@ -145,9 +167,29 @@ function BookingSummary() {
           );
         }
 
+        const requiredTypes = ["adult", "child", "accessible"];
+
+        if (
+          !requiredTypes.every((type) =>
+            prices.some((price) => price.ticket_type_code === type)
+          )
+        ) {
+          throw new Error("Required ticket prices are unavailable.");
+        }
+
         setData(result);
         setMovieTitle(movie.title);
         setSelectedSeats(chosenSeats);
+        setTicketPrices(prices);
+
+        // Adult is the default ticket category for every seat.
+        const defaults: TicketSelections = {};
+
+        chosenSeats.forEach((seat) => {
+          defaults[seat.seat_id] = "adult";
+        });
+
+        setTicketSelections(defaults);
       } catch (err) {
         setError(
           err instanceof Error
@@ -162,15 +204,57 @@ function BookingSummary() {
     loadBookingSummary();
   }, [showtimeId]);
 
+  const updateTicketType = (
+    seatId: number,
+    ticketType: TicketPrice["ticket_type_code"]
+  ) => {
+    setTicketSelections((previous) => ({
+      ...previous,
+      [seatId]: ticketType,
+    }));
+  };
+
+  const getPrice = (ticketType: string): number => {
+    const price = ticketPrices.find(
+      (item) => item.ticket_type_code === ticketType
+    );
+
+    return Number(price?.price_cents ?? 0);
+  };
+
+  const totalAmount = selectedSeats.reduce((total, seat) => {
+    return total + getPrice(ticketSelections[seat.seat_id]);
+  }, 0);
+
+  const formatPrice = (amountCents: number) =>
+    new Intl.NumberFormat("fi-FI", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amountCents / 100);
+
   const confirmBooking = async () => {
     if (!data || !showtimeId || submitting) return;
+
+    if (
+      selectedSeats.some(
+        (seat) => !ticketSelections[seat.seat_id]
+      )
+    ) {
+      setError("Please select a ticket type for every seat.");
+      return;
+    }
 
     try {
       setSubmitting(true);
       setError("");
 
+      const tickets = selectedSeats.map((seat) => ({
+        seat_id: seat.seat_id,
+        ticket_type_code: ticketSelections[seat.seat_id],
+      }));
+
       const response = await fetch(
-        "http://localhost:3000/api/bookings",
+        "http://localhost:3000/api/checkout-sessions",
         {
           method: "POST",
           headers: {
@@ -179,7 +263,7 @@ function BookingSummary() {
           body: JSON.stringify({
             user_id: 1,
             showtime_id: Number(showtimeId),
-            seat_ids: selectedSeats.map((seat) => seat.seat_id),
+            tickets,
           }),
         }
       );
@@ -188,22 +272,23 @@ function BookingSummary() {
 
       if (!response.ok) {
         throw new Error(
-          result.error || "Unable to confirm booking."
+          result.error || "Unable to start checkout."
         );
       }
 
-      sessionStorage.removeItem(`selectedSeats-${showtimeId}`);
+      if (!result.checkout_url) {
+        throw new Error("Stripe Checkout URL was not returned.");
+      }
 
-      navigate(
-        `/booking-confirmation/${result.booking.booking_id}`
-      );
+      // Redirect to Stripe-hosted Checkout.
+      // Keep selected seats in sessionStorage if customer cancels.
+      window.location.href = result.checkout_url;
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Booking failed. Please try again."
+          : "Checkout failed. Please try again."
       );
-    } finally {
       setSubmitting(false);
     }
   };
@@ -263,6 +348,14 @@ function BookingSummary() {
           Booking <span className="text-red-500">Summary</span>
         </h1>
 
+        {paymentCancelled && (
+          <div className="mt-6 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-300">
+            Payment was cancelled. Your selected seats are still in
+            this session. You can try checkout again if they remain
+            available.
+          </div>
+        )}
+
         <section className="mt-8 rounded-2xl border border-white/10 bg-[#14141b] p-6">
           <h2 className="text-xl font-bold">Screening Details</h2>
 
@@ -301,39 +394,104 @@ function BookingSummary() {
         </section>
 
         <section className="mt-5 rounded-2xl border border-white/10 bg-[#14141b] p-6">
-          <h2 className="text-xl font-bold">Selected Seats</h2>
+          <h2 className="text-xl font-bold">Ticket Selection</h2>
 
-          <div className="mt-5 space-y-3">
+          <p className="mt-2 text-sm text-zinc-400">
+            Choose a ticket category for each selected seat.
+          </p>
+
+          <div className="mt-5 space-y-4">
             {selectedSeats.map((seat) => (
               <div
                 key={seat.seat_id}
-                className="flex items-center justify-between rounded-lg bg-white/[0.04] p-4"
+                className="flex flex-col gap-3 rounded-lg bg-white/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <span className="font-bold">
-                  Row {seat.row_label} · Seat {seat.seat_number}
-                </span>
+                <div>
+                  <p className="font-bold">
+                    Row {seat.row_label} · Seat {seat.seat_number}
+                  </p>
 
-                {seat.is_accessible && (
-                  <span className="text-xs text-emerald-400">
-                    Accessible
-                  </span>
-                )}
+                  {seat.is_accessible && (
+                    <span className="mt-1 inline-block text-xs text-emerald-400">
+                      Accessible seat
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <select
+                    value={ticketSelections[seat.seat_id] || "adult"}
+                    onChange={(event) =>
+                      updateTicketType(
+                        seat.seat_id,
+                        event.target.value as TicketPrice["ticket_type_code"]
+                      )
+                    }
+                    className="min-w-40 rounded-lg border border-white/10 bg-[#24242d] px-3 py-2 text-sm text-white outline-none focus:border-red-500"
+                    aria-label={`Ticket type for seat ${seat.row_label}${seat.seat_number}`}
+                  >
+                    {ticketPrices.map((price) => (
+                      <option
+                        key={price.ticket_type_code}
+                        value={price.ticket_type_code}
+                      >
+                        {price.display_name} –{" "}
+                        {formatPrice(Number(price.price_cents))}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             ))}
           </div>
-
-          <div className="mt-5 flex justify-between border-t border-white/10 pt-4">
-            <span className="text-zinc-400">Total seats</span>
-            <span className="font-bold">
-              {selectedSeats.length}
-            </span>
-          </div>
         </section>
 
-        <p className="mt-5 text-xs leading-6 text-zinc-500">
-          This is a development booking flow using a test customer account.
-          Ticket pricing and payment are not included.
-        </p>
+        <section className="mt-5 rounded-2xl border border-white/10 bg-[#14141b] p-6">
+          <h2 className="text-xl font-bold">Price Breakdown</h2>
+
+          <div className="mt-5 space-y-3">
+            {ticketPrices.map((price) => {
+              const quantity = selectedSeats.filter(
+                (seat) =>
+                  ticketSelections[seat.seat_id] ===
+                  price.ticket_type_code
+              ).length;
+
+              if (quantity === 0) return null;
+
+              return (
+                <div
+                  key={price.ticket_type_code}
+                  className="flex justify-between gap-4 text-sm"
+                >
+                  <span className="text-zinc-400">
+                    {price.display_name} × {quantity}
+                  </span>
+
+                  <span className="font-semibold">
+                    {formatPrice(
+                      Number(price.price_cents) * quantity
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-5 flex justify-between border-t border-white/10 pt-4">
+            <span className="text-lg font-bold">Total</span>
+            <span className="text-2xl font-black text-red-500">
+              {formatPrice(totalAmount)}
+            </span>
+          </div>
+
+          <p className="mt-4 text-xs leading-6 text-zinc-500">
+            Child tickets are for customers under 16. Child and
+            accessible discounts cannot be combined. Accessible
+            ticket pricing is separate from accessible seat selection.
+            Final prices are calculated and verified by the server.
+          </p>
+        </section>
 
         {error && (
           <p
@@ -350,8 +508,14 @@ function BookingSummary() {
           disabled={submitting || selectedSeats.length === 0}
           className="mt-7 w-full rounded-xl bg-red-600 px-6 py-4 font-bold transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {submitting ? "Confirming Booking..." : "Confirm Booking"}
+          {submitting
+            ? "Redirecting to Stripe..."
+            : `Continue to Payment · ${formatPrice(totalAmount)}`}
         </button>
+
+        <p className="mt-4 text-center text-xs text-zinc-500">
+          Secure test payment powered by Stripe Checkout.
+        </p>
       </main>
     </div>
   );
