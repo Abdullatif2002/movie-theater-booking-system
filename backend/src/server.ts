@@ -1,4 +1,8 @@
-
+import authRoutes from "./routes/auth";
+import staffRoutes from "./routes/staff";
+import adminRoutes from "./routes/admin";
+import cinemaRoutes from "./routes/cinemas";
+import roomRoutes from "./routes/rooms";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -212,6 +216,11 @@ app.post(
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/auth", authRoutes);
+app.use("/api/staff", staffRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/cinemas", cinemaRoutes);
+app.use("/api/rooms", roomRoutes);
 
 // --------------------------------------------------
 // Database connection test
