@@ -4,6 +4,7 @@ import adminRoutes from "./routes/admin";
 import cinemaRoutes from "./routes/cinemas";
 import roomRoutes from "./routes/rooms";
 import seatRoutes from "./routes/seats";
+import showtimeRoutes from "./routes/showtimes";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -223,6 +224,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/cinemas", cinemaRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/seats", seatRoutes);
+app.use("/api/management/showtimes", showtimeRoutes);
 
 // --------------------------------------------------
 // Database connection test

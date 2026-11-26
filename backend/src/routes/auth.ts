@@ -1,3 +1,4 @@
+
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -9,7 +10,7 @@ import {
 
 const router = Router();
 
-// Staff and Admin Login
+// Customer, Staff and Admin Login
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -48,11 +49,13 @@ router.post("/login", async (req: Request, res: Response) => {
         error: "Invalid email or password.",
       });
     }
+
     const user = result.rows[0];
 
-    if (!["staff", "admin"].includes(user.role)) {
+    // Allow only supported user roles
+    if (!["customer", "staff", "admin"].includes(user.role)) {
       return res.status(403).json({
-        error: "Access denied. Staff or Admin account required.",
+        error: "Access denied. Invalid user role.",
       });
     }
 
@@ -72,7 +75,7 @@ router.post("/login", async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
       },
-      secret!,
+      secret,
       {
         subject: String(user.user_id),
         expiresIn: "8h",
@@ -89,6 +92,7 @@ router.post("/login", async (req: Request, res: Response) => {
         role: user.role,
       },
     });
+
   } catch (error) {
     console.error("Login error:", error);
 
