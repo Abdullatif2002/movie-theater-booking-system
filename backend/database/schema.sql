@@ -181,3 +181,30 @@ CREATE INDEX idx_booking_seats_booking
 ON booking_seats(booking_id);
 
 
+-- 9. PRIVATE SCREENING REQUESTS TABLE
+CREATE TABLE private_screening_requests (
+    request_id SERIAL PRIMARY KEY,
+
+    organization_name VARCHAR(150) NOT NULL,
+    contact_name VARCHAR(100) NOT NULL,
+    contact_email VARCHAR(255) NOT NULL,
+    contact_phone VARCHAR(50) NOT NULL DEFAULT '',
+
+    preferred_datetime TIMESTAMP NOT NULL,
+    estimated_attendees INT NOT NULL CHECK (estimated_attendees > 0),
+    additional_requirements TEXT,
+
+    status VARCHAR(30) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'reviewed', 'approved', 'rejected')),
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_private_screening_requests_status
+ON private_screening_requests(status);
+
+CREATE INDEX idx_private_screening_requests_created_at
+ON private_screening_requests(created_at DESC);
+
+
+

@@ -5,6 +5,11 @@ import {
   authenticateToken,
   requireRole,
 } from "../middleware/auth";
+import {
+  listPrivateScreeningRequests,
+  getPrivateScreeningRequestById,
+  updatePrivateScreeningRequestStatus,
+} from "./privateScreenings";
 
 const router = Router();
 
@@ -223,6 +228,33 @@ router.get(
       });
     }
   }
+);
+
+// GET /api/staff/private-screenings
+// List submitted corporate private screening requests
+router.get("/private-screenings", listPrivateScreeningRequests);
+router.get("/private-screening-requests", listPrivateScreeningRequests);
+
+// GET /api/staff/private-screenings/:requestId
+// View details of a specific private screening request
+router.get(
+  "/private-screenings/:requestId",
+  getPrivateScreeningRequestById
+);
+router.get(
+  "/private-screening-requests/:requestId",
+  getPrivateScreeningRequestById
+);
+
+// PATCH /api/staff/private-screenings/:requestId/status
+// Update status of a private screening request
+router.patch(
+  "/private-screenings/:requestId/status",
+  updatePrivateScreeningRequestStatus
+);
+router.patch(
+  "/private-screening-requests/:requestId/status",
+  updatePrivateScreeningRequestStatus
 );
 
 export default router;

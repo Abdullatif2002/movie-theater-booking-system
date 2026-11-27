@@ -10,6 +10,8 @@ import MovieDetails from "./pages/MovieDetails";
 import SeatSelection from "./pages/SeatSelection";
 import BookingSummary from "./pages/BookingSummary";
 import BookingConfirmation from "./pages/BookingConfirmation";
+import PrivateScreeningRequest from "./pages/PrivateScreeningRequest";
+import StaffPrivateScreenings from "./pages/StaffPrivateScreenings";
 
 export interface Movie {
   movie_id: number;
@@ -206,6 +208,39 @@ function HomePage() {
             </button>
           </div>
         )}
+
+        <section className="mt-14 rounded-2xl border border-white/[0.08] bg-gradient-to-r from-[#14141b] via-[#171219] to-[#111116] p-6 sm:p-8">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold uppercase tracking-[0.3em] text-red-500">
+                Corporate & Group Events
+              </p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
+                Planning a Private Movie Screening for Your Organization?
+              </h2>
+              <p className="mt-2 text-sm leading-7 text-zinc-400">
+                Submit a private screening request with your organization details,
+                preferred date and time, estimated attendees, and custom event
+                requirements.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                to="/private-screening"
+                className="rounded-xl bg-red-600 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-red-500"
+              >
+                Request Private Screening →
+              </Link>
+              <Link
+                to="/staff/private-screenings"
+                className="rounded-xl border border-white/15 bg-white/[0.04] px-5 py-3.5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.08]"
+              >
+                Staff Request View
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer
@@ -266,6 +301,23 @@ function App() {
   path="/booking-confirmation/:bookingId"
   element={<BookingConfirmation />}
 />
+
+      <Route
+        path="/private-screening"
+        element={<PrivateScreeningRequest />}
+      />
+      <Route
+        path="/private-screenings"
+        element={<PrivateScreeningRequest />}
+      />
+      <Route
+        path="/staff/private-screenings"
+        element={<StaffPrivateScreenings />}
+      />
+      <Route
+        path="/staff"
+        element={<StaffPrivateScreenings />}
+      />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

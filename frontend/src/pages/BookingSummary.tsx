@@ -54,6 +54,8 @@ function BookingSummary() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [seatConflict, setSeatConflict] = useState(false);
+  const [approvedRules, setApprovedRules] = useState(true);
 
   const paymentCancelled =
     new URLSearchParams(window.location.search).get("payment") ===
@@ -244,9 +246,17 @@ function BookingSummary() {
       return;
     }
 
+    if (!approvedRules) {
+      setError(
+        "Please approve the reservation hold and expiry rules before continuing."
+      );
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError("");
+      setSeatConflict(false);
 
       const tickets = selectedSeats.map((seat) => ({
         seat_id: seat.seat_id,
@@ -271,6 +281,11 @@ function BookingSummary() {
       const result = await response.json();
 
       if (!response.ok) {
+        if (response.status === 409) {
+          setSeatConflict(true);
+          sessionStorage.removeItem(`selectedSeats-${showtimeId}`);
+        }
+
         throw new Error(
           result.error || "Unable to start checkout."
         );
@@ -493,19 +508,70 @@ function BookingSummary() {
           </p>
         </section>
 
+        <section className="mt-5 rounded-2xl border border-white/10 bg-[#14141b] p-6">
+          <h2 className="text-lg font-bold">
+            Reservation Hold & Expiry Rules
+          </h2>
+
+          <ul className="mt-3 list-disc space-y-1.5 pl-5 text-xs leading-6 text-zinc-400">
+            <li>
+              Only one active reservation is permitted for a specific seat and
+              screening.
+            </li>
+            <li>
+              Your selected seats are held for <strong>31 minutes</strong> while
+              you complete payment.
+            </li>
+            <li>
+              If payment is not completed before the reservation deadline, the
+              unpaid reservation automatically expires and releases the seats for
+              other customers.
+            </li>
+          </ul>
+
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3.5 text-xs text-zinc-200">
+            <input
+              type="checkbox"
+              checked={approvedRules}
+              onChange={(e) => setApprovedRules(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-red-600"
+            />
+            <span>
+              I approve the reservation rules and understand that an expired
+              unpaid reservation automatically releases the selected seats.
+            </span>
+          </label>
+        </section>
+
         {error && (
-          <p
+          <div
             role="alert"
-            className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"
+            className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-300"
           >
-            {error}
-          </p>
+            <p className="font-bold text-red-200">
+              {seatConflict
+                ? "Seat No Longer Available"
+                : "Unable to Complete Booking"}
+            </p>
+            <p className="mt-1">{error}</p>
+
+            {seatConflict && (
+              <Link
+                to={`/showtimes/${showtimeId}/seats`}
+                className="mt-4 inline-block rounded-lg bg-red-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-red-500"
+              >
+                Return to Seat Selection →
+              </Link>
+            )}
+          </div>
         )}
 
         <button
           type="button"
           onClick={confirmBooking}
-          disabled={submitting || selectedSeats.length === 0}
+          disabled={
+            submitting || selectedSeats.length === 0 || seatConflict
+          }
           className="mt-7 w-full rounded-xl bg-red-600 px-6 py-4 font-bold transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting

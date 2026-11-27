@@ -38,6 +38,8 @@ function SeatSelection() {
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [conflictMessage, setConflictMessage] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     const loadSeats = async () => {
@@ -92,6 +94,8 @@ function SeatSelection() {
 
     if (!seat || seat.is_booked) return;
 
+    setConflictMessage("");
+
     setSelectedSeats((current) =>
       current.includes(seatId)
         ? current.filter((id) => id !== seatId)
@@ -114,15 +118,54 @@ function SeatSelection() {
   const bookedCount =
     data?.seats.filter((seat) => seat.is_booked).length ?? 0;
 
-  const continueToBooking = () => {
-    if (!showtimeId || selectedSeats.length === 0) return;
+  const continueToBooking = async () => {
+    if (!showtimeId || selectedSeats.length === 0 || verifying) return;
 
-    sessionStorage.setItem(
-      `selectedSeats-${showtimeId}`,
-      JSON.stringify(selectedSeats)
-    );
+    try {
+      setVerifying(true);
+      setConflictMessage("");
 
-    navigate(`/booking-summary/${showtimeId}`);
+      const response = await fetch(
+        `http://localhost:3000/api/showtimes/${showtimeId}/seats`,
+        { cache: "no-store" }
+      );
+
+      if (response.ok) {
+        const latest: SeatResponse = await response.json();
+        setData(latest);
+
+        const newlyBooked = latest.seats.filter(
+          (seat) =>
+            selectedSeats.includes(seat.seat_id) && seat.is_booked
+        );
+
+        if (newlyBooked.length > 0) {
+          const labels = newlyBooked
+            .map((s) => `${s.row_label}${s.seat_number}`)
+            .join(", ");
+
+          setSelectedSeats((prev) =>
+            prev.filter(
+              (id) => !newlyBooked.some((s) => s.seat_id === id)
+            )
+          );
+
+          setConflictMessage(
+            `Seat(s) ${labels} were just reserved by another customer and are no longer available. Please select another available seat.`
+          );
+          return;
+        }
+      }
+
+      sessionStorage.setItem(
+        `selectedSeats-${showtimeId}`,
+        JSON.stringify(selectedSeats)
+      );
+
+      navigate(`/booking-summary/${showtimeId}`);
+    } finally {
+      setVerifying(false);
+    }
   };
 
   if (loading) {
@@ -327,13 +370,27 @@ function SeatSelection() {
             again before booking confirmation.
           </p>
 
+          {conflictMessage && (
+            <div
+              role="alert"
+              className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"
+            >
+              <p className="font-bold text-red-200">
+                Seat No Longer Available
+              </p>
+              <p className="mt-1">{conflictMessage}</p>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={continueToBooking}
-            disabled={selectedSeats.length === 0}
+            disabled={selectedSeats.length === 0 || verifying}
             className="mt-6 w-full rounded-xl bg-red-600 px-6 py-4 font-bold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Continue to Booking →
+            {verifying
+              ? "Checking Seat Availability..."
+              : "Continue to Booking →"}
           </button>
         </section>
       </main>

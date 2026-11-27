@@ -42,6 +42,8 @@ function BookingConfirmation() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
 
   useEffect(() => {
     if (!bookingId || !/^\d+$/.test(bookingId)) {
@@ -142,6 +144,68 @@ function BookingConfirmation() {
         return "Adult";
       default:
         return "Previous booking";
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!bookingId || actionLoading) return;
+    try {
+      setActionLoading(true);
+      setActionMessage("");
+      const res = await fetch(
+        `http://localhost:3000/api/bookings/${bookingId}/confirm-payment`,
+        { method: "POST" }
+      );
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || "Unable to confirm payment.");
+      }
+      const reload = await fetch(
+        `http://localhost:3000/api/bookings/${bookingId}`,
+        { cache: "no-store" }
+      );
+      if (reload.ok) {
+        setData(await reload.json());
+      }
+      setActionMessage("Payment confirmed! Your seat reservation is locked in.");
+    } catch (err) {
+      setActionMessage(
+        err instanceof Error ? err.message : "Action failed."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleExpireReservation = async () => {
+    if (!bookingId || actionLoading) return;
+    try {
+      setActionLoading(true);
+      setActionMessage("");
+      const res = await fetch(
+        `http://localhost:3000/api/bookings/${bookingId}/expire`,
+        { method: "POST" }
+      );
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || "Unable to expire reservation.");
+      }
+      const reload = await fetch(
+        `http://localhost:3000/api/bookings/${bookingId}`,
+        { cache: "no-store" }
+      );
+      if (reload.ok) {
+        setData(await reload.json());
+      }
+      setActionMessage(
+        "Unpaid reservation expired according to reservation rules. Seats have been released."
+      );
+    } catch (err) {
+      setActionMessage(
+        err instanceof Error ? err.message : "Action failed."
+      );
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -291,7 +355,32 @@ function BookingConfirmation() {
                   ? "Checking payment status..."
                   : "Waiting for payment confirmation..."}
               </p>
+
+              <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={handleConfirmPayment}
+                  className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  Confirm Payment Now
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={handleExpireReservation}
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-2.5 text-xs font-bold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                >
+                  Expire Unpaid Hold & Release Seats
+                </button>
+              </div>
             </div>
+          )}
+
+          {actionMessage && (
+            <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs text-zinc-300">
+              {actionMessage}
+            </p>
           )}
 
           <div className="mt-7 rounded-xl bg-white/[0.04] p-5">

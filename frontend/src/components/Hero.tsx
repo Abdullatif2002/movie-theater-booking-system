@@ -1,4 +1,6 @@
 
+import { Link } from "react-router-dom";
+
 function Hero() {
   return (
     <section
@@ -56,12 +58,12 @@ function Hero() {
               <span aria-hidden="true">→</span>
             </a>
 
-            <a
-              href="#contact"
+            <Link
+              to="/private-screening"
               className="rounded-xl border border-white/20 bg-white/[0.04] px-7 py-4 text-sm font-semibold text-white transition hover:border-red-500/50 hover:bg-white/[0.08]"
             >
-              About CINEMAX
-            </a>
+              Request Private Screening
+            </Link>
           </div>
 
           {/* Highlights */}
